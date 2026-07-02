@@ -1,0 +1,45 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "database-administrator": {
+      "steps": 15
+    },
+    "platform-engineer": {
+      "steps": 15
+    },
+    "sre-engineer": {
+      "steps": 15
+    },
+    "code-reviewer": {
+      "steps": 15
+    },
+    "data-analyst": {
+      "steps": 12
+    },
+    "database-optimizer": {
+      "steps": 15
+    },
+    "postgres-pro": {
+      "steps": 15
+    },
+    "sql-pro": {
+      "steps": 15
+    },
+    "dependency-manager": {
+      "steps": 10
+    },
+    "docs-writer": {
+      "steps": 10
+    },
+    "git-workflow-manager": {
+      "steps": 8
+    },
+    "technical-writer": {
+      "steps": 10
+    }
+  },
+  "compaction": {
+    "auto": true,
+    "prune": true
+  }
+}
