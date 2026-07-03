@@ -1,0 +1,103 @@
+# OpenConversation local development infrastructure
+# Services: Whisper (speech-to-text), PostgreSQL
+# Future services: backend (Kotlin/Spring Boot), webapp (Vite/React)
+#
+# Usage:
+#   cp .env.example .env
+#   docker compose -f infra/docker-compose.yml up
+
+services:
+  whisper:
+    image: ghcr.io/ggml-org/whisper.cpp:main
+    container_name: openconversation-whisper
+    ports:
+      - "8080:8080"
+    volumes:
+      # Bind mount for downloaded Whisper models
+      - ./models:/models
+      # Entrypoint that downloads the model if missing before starting the server
+      - ./whisper-entrypoint.sh:/whisper-entrypoint.sh:ro
+    # Override the default image command with our model-check entrypoint
+    command: ["/whisper-entrypoint.sh"]
+    networks:
+      - openconversation
+    healthcheck:
+      # Treat any HTTP response from /inference as healthy (server is listening)
+      test:
+        [
+          "CMD-SHELL",
+          "wget --server-response --quiet --output-document=/dev/null http://localhost:8080/inference 2>&1 | grep -q 'HTTP/'",
+        ]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: openconversation-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required. Copy .env.example to .env and fill it in.}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required. Copy .env.example to .env and fill it in.}
+      POSTGRES_DB: ${POSTGRES_DB:-conversation}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - openconversation
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}",
+        ]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+    restart: unless-stopped
+
+  # backend:
+  #   build:
+  #     context: ../backend
+  #     dockerfile: Dockerfile
+  #   container_name: openconversation-backend
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     whisper:
+  #       condition: service_healthy
+  #   environment:
+  #     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-conversation}
+  #     SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+  #     SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+  #     WHISPER_BASE_URL: http://whisper:8080
+  #   ports:
+  #     - "8081:8081"
+  #   networks:
+  #     - openconversation
+  #   restart: unless-stopped
+
+  # webapp:
+  #   build:
+  #     context: ../webapp
+  #     dockerfile: Dockerfile
+  #   container_name: openconversation-webapp
+  #   depends_on:
+  #     - backend
+  #   environment:
+  #     VITE_API_URL: http://localhost:8081
+  #   ports:
+  #     - "5173:5173"
+  #   networks:
+  #     - openconversation
+  #   restart: unless-stopped
+
+networks:
+  openconversation:
+    driver: bridge
+
+volumes:
+  postgres_data:
