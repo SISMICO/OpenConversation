@@ -35,14 +35,17 @@ class ConversationController(
     fun create(
         @RequestParam audio: MultipartFile,
         @RequestParam topicTitle: String,
+        @RequestParam(required = false) language: String?,
     ): ResponseEntity<ConversationResponse> {
         require(!audio.isEmpty) { "Audio file must not be empty" }
         require(topicTitle.isNotBlank()) { "Topic title must not be blank" }
 
         val analyzed =
             analyzeConversationUseCase.analyze(
-                audioStorageRef = "audio://placeholder/${UUID.randomUUID()}",
+                audio = audio.bytes,
+                audioFilename = audio.originalFilename,
                 topicTitle = topicTitle.trim(),
+                language = language?.trim()?.takeIf { it.isNotBlank() },
             )
 
         val location =

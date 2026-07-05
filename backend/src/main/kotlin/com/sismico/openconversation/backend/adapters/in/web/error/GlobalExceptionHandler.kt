@@ -1,5 +1,7 @@
 package com.sismico.openconversation.backend.adapters.`in`.web.error
 
+import com.sismico.openconversation.backend.domain.exception.AudioConversionException
+import com.sismico.openconversation.backend.domain.exception.TranscriptionFailedException
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -80,6 +82,30 @@ class GlobalExceptionHandler {
             status = HttpStatus.PAYLOAD_TOO_LARGE,
             code = "PAYLOAD_TOO_LARGE",
             message = ex.message ?: "Uploaded file exceeds the maximum allowed size",
+            path = request.requestURI,
+        )
+
+    @ExceptionHandler(AudioConversionException::class)
+    fun handleAudioConversionFailed(
+        ex: AudioConversionException,
+        request: HttpServletRequest,
+    ): ResponseEntity<ApiErrorResponse> =
+        buildResponse(
+            status = HttpStatus.BAD_REQUEST,
+            code = "AUDIO_CONVERSION_FAILED",
+            message = ex.message ?: "Audio conversion failed",
+            path = request.requestURI,
+        )
+
+    @ExceptionHandler(TranscriptionFailedException::class)
+    fun handleTranscriptionFailed(
+        ex: TranscriptionFailedException,
+        request: HttpServletRequest,
+    ): ResponseEntity<ApiErrorResponse> =
+        buildResponse(
+            status = HttpStatus.SERVICE_UNAVAILABLE,
+            code = "TRANSCRIPTION_FAILED",
+            message = ex.message ?: "Transcription failed",
             path = request.requestURI,
         )
 

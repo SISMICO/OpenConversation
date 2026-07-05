@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { Header } from '#components/Header'
 import { Button } from '#components/ui/button'
+import { Input } from '#components/ui/input'
 import {
   Card,
   CardContent,
@@ -33,7 +34,11 @@ import {
   DialogTrigger,
 } from '#components/ui/dialog'
 import { useAudioRecorder, type RecorderErrorType } from '#hooks/useAudioRecorder'
-import { analyseAudio } from '#api/analysis'
+import { useAudioPlayback } from '#hooks/useAudioPlayback'
+import {
+  createConversation,
+  type ConversationResponse,
+} from '#api/conversation'
 import './App.css'
 
 const TOPIC_PLACEHOLDER =
@@ -55,19 +60,24 @@ function formatDuration(ms: number): string {
 
 export default function App() {
   const recorder = useAudioRecorder()
-  const [feedback, setFeedback] = useState<string | null>(null)
+  const playback = useAudioPlayback(recorder.blob)
+  const [topicTitle, setTopicTitle] = useState('')
+  const [conversation, setConversation] = useState<ConversationResponse | null>(
+    null,
+  )
   const [isSending, setIsSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [isDiscardOpen, setIsDiscardOpen] = useState(false)
 
   const handleStart = useCallback(async () => {
-    setFeedback(null)
+    setConversation(null)
     setSendError(null)
+    playback.reset()
     await recorder.start()
-  }, [recorder])
+  }, [recorder, playback])
 
   const handleSend = useCallback(async () => {
-    if (!recorder.blob || !recorder.mimeType) {
+    if (!recorder.blob || !topicTitle.trim()) {
       return
     }
 
@@ -75,12 +85,11 @@ export default function App() {
     setSendError(null)
 
     try {
-      const result = await analyseAudio({
+      const result = await createConversation({
         audio: recorder.blob,
-        mimeType: recorder.mimeType,
-        language: 'en',
+        topicTitle: topicTitle.trim(),
       })
-      setFeedback(result.feedback)
+      setConversation(result)
     } catch (error) {
       setSendError(
         error instanceof Error
@@ -90,14 +99,15 @@ export default function App() {
     } finally {
       setIsSending(false)
     }
-  }, [recorder.blob, recorder.mimeType])
+  }, [recorder.blob, topicTitle])
 
   const handleDiscard = useCallback(() => {
+    playback.reset()
     recorder.reset()
-    setFeedback(null)
+    setConversation(null)
     setSendError(null)
     setIsDiscardOpen(false)
-  }, [recorder])
+  }, [recorder, playback])
 
   const recorderError = recorder.error ? ERROR_MESSAGES[recorder.error] : null
 
@@ -111,7 +121,19 @@ export default function App() {
             <CardDescription>Practice speaking about this topic</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="topic-text">{TOPIC_PLACEHOLDER}</p>
+            <label
+              htmlFor="topic-title"
+              className="mb-2 block text-sm font-medium text-foreground"
+            >
+              What would you like to talk about?
+            </label>
+            <Input
+              id="topic-title"
+              value={topicTitle}
+              onChange={(event) => setTopicTitle(event.target.value)}
+              placeholder={TOPIC_PLACEHOLDER}
+              disabled={recorder.state === 'recording'}
+            />
           </CardContent>
         </Card>
 
@@ -181,9 +203,29 @@ export default function App() {
               {recorder.state === 'stopped' && !isSending && (
                 <>
                   <Button
+                    onClick={playback.state === 'playing' ? playback.stop : playback.play}
+                    variant="secondary"
+                    size="lg"
+                    className="control-button"
+                    disabled={!recorder.blob}
+                  >
+                    {playback.state === 'playing' ? (
+                      <>
+                        <Square className="mr-2 size-5" />
+                        Stop
+                      </>
+                    ) : (
+                      <>
+                        <Play className="mr-2 size-5" />
+                        Play
+                      </>
+                    )}
+                  </Button>
+                  <Button
                     onClick={handleSend}
                     size="lg"
                     className="control-button"
+                    disabled={!recorder.blob || !topicTitle.trim()}
                   >
                     <Send className="mr-2 size-5" />
                     Send
@@ -275,8 +317,42 @@ export default function App() {
                 <Loader2 className="size-8 animate-spin" />
                 <p>Analysing your recording...</p>
               </div>
-            ) : feedback ? (
-              <p className="feedback-text">{feedback}</p>
+            ) : conversation ? (
+              <div className="space-y-6">
+                <section>
+                  <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                    Transcript
+                  </h3>
+                  <p className="feedback-text">{conversation.transcript}</p>
+                </section>
+                <section>
+                  <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                    Feedback
+                  </h3>
+                  {conversation.feedbackItems.length > 0 ? (
+                    <ul className="feedback-list space-y-4">
+                      {conversation.feedbackItems.map((item) => (
+                        <li
+                          key={item.id}
+                          className="feedback-item"
+                        >
+                          <p className="feedback-excerpt">
+                            &ldquo;{item.excerpt}&rdquo;
+                          </p>
+                          <p className="feedback-recommendation">
+                            {item.recommendation}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="feedback-placeholder">
+                      No specific feedback items were returned for this
+                      recording.
+                    </p>
+                  )}
+                </section>
+              </div>
             ) : (
               <p className="feedback-placeholder">
                 Your feedback will appear here after you send a recording.

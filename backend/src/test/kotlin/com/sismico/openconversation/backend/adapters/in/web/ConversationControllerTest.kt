@@ -18,6 +18,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
+import org.springframework.mock.web.MockMultipartFile
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart
@@ -58,6 +59,14 @@ class ConversationControllerTest {
     fun `POST returns 201 and conversation body when audio and topic are provided`() {
         val topicId = UUID.randomUUID()
         val conversationId = UUID.randomUUID()
+        val audioBytes = "fake-audio".toByteArray()
+        val audioFile =
+            MockMultipartFile(
+                "audio",
+                "recording.webm",
+                MediaType.APPLICATION_OCTET_STREAM_VALUE,
+                audioBytes,
+            )
         val conversation =
             Conversation(
                 id = conversationId,
@@ -82,15 +91,17 @@ class ConversationControllerTest {
 
         every {
             analyzeConversationUseCase.analyze(
-                audioStorageRef = any(),
+                audio = any<ByteArray>(),
+                audioFilename = any(),
                 topicTitle = "job interview about my career",
+                language = any(),
             )
         } returns analyzed
 
         mockMvc
             .perform(
                 multipart("/api/v1/conversations")
-                    .file("audio", "fake-audio".toByteArray())
+                    .file(audioFile)
                     .param("topicTitle", "job interview about my career"),
             ).andExpect(status().isCreated)
             .andExpect(header().string("Location", "http://localhost/api/v1/conversations/$conversationId"))
@@ -103,8 +114,63 @@ class ConversationControllerTest {
 
         verify {
             analyzeConversationUseCase.analyze(
-                audioStorageRef = any(),
+                audio = audioBytes,
+                audioFilename = "recording.webm",
                 topicTitle = "job interview about my career",
+                language = null,
+            )
+        }
+    }
+
+    @Test
+    fun `POST forwards language parameter to use case when provided`() {
+        val topicId = UUID.randomUUID()
+        val conversationId = UUID.randomUUID()
+        val audioBytes = "fake-audio".toByteArray()
+        val audioFile =
+            MockMultipartFile(
+                "audio",
+                "recording.webm",
+                MediaType.APPLICATION_OCTET_STREAM_VALUE,
+                audioBytes,
+            )
+        val conversation =
+            Conversation(
+                id = conversationId,
+                topicId = topicId,
+                audioStorageRef = "audio://placeholder/${UUID.randomUUID()}",
+                transcript = "Simulated transcription in Portuguese for topic 'job interview'.",
+                analyzedAt = nowUtc(),
+                feedbackItems = emptyList(),
+                createdAt = nowUtc(),
+                updatedAt = nowUtc(),
+            )
+        val analyzed = ConversationWithTopic(conversation, "job interview")
+
+        every {
+            analyzeConversationUseCase.analyze(
+                audio = any<ByteArray>(),
+                audioFilename = any(),
+                topicTitle = "job interview",
+                language = "Portuguese",
+            )
+        } returns analyzed
+
+        mockMvc
+            .perform(
+                multipart("/api/v1/conversations")
+                    .file(audioFile)
+                    .param("topicTitle", "job interview")
+                    .param("language", "Portuguese"),
+            ).andExpect(status().isCreated)
+            .andExpect(jsonPath("$.id").value(conversationId.toString()))
+
+        verify {
+            analyzeConversationUseCase.analyze(
+                audio = audioBytes,
+                audioFilename = "recording.webm",
+                topicTitle = "job interview",
+                language = "Portuguese",
             )
         }
     }

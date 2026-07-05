@@ -2,6 +2,8 @@ package com.sismico.openconversation.backend.adapters.`in`.web
 
 import com.sismico.openconversation.backend.adapters.`in`.web.error.NotFoundException
 import com.sismico.openconversation.backend.adapters.`in`.web.error.ValidationException
+import com.sismico.openconversation.backend.domain.exception.AudioConversionException
+import com.sismico.openconversation.backend.domain.exception.TranscriptionFailedException
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
@@ -18,4 +20,10 @@ class ExceptionHandlerTestController {
 
     @GetMapping("/illegal-argument")
     fun illegalArgument(): String = throw IllegalArgumentException("Bad input")
+
+    @GetMapping("/transcription-failed")
+    fun transcriptionFailed(): String = throw TranscriptionFailedException("Whisper unavailable")
+
+    @GetMapping("/audio-conversion-failed")
+    fun audioConversionFailed(): String = throw AudioConversionException("Unsupported audio format")
 }

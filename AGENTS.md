@@ -28,6 +28,7 @@ Proposed structure inside `backend/src/main/kotlin/...`:
 - `adapters/in/web/` - REST controllers, request/response DTOs (inbound adapters)
 - `adapters/out/persistence/` - Postgres/JPA repository implementations, Flyway migrations reference (outbound adapters)
 - `adapters/out/transcription/` - Whisper HTTP client implementing `TranscriptionPort`
+- `adapters/out/storage/` - Audio storage adapter implementing `AudioStoragePort` (local filesystem for now; designed so S3/object storage can be swapped in later)
 - `adapters/out/llm/` - Ollama/llama.cpp HTTP client implementing `LlmAnalysisPort`
 - `config/` - Spring configuration, bean wiring
 

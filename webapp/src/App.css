@@ -72,6 +72,28 @@
   color: var(--muted-foreground);
 }
 
+.feedback-list {
+  list-style: none;
+  padding: 0;
+}
+
+.feedback-item {
+  border-left: 3px solid var(--primary);
+  padding-left: 16px;
+}
+
+.feedback-excerpt {
+  color: var(--text-h);
+  font-style: italic;
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+
+.feedback-recommendation {
+  color: var(--muted-foreground);
+  line-height: 1.5;
+}
+
 @media (max-width: 640px) {
   .app-container {
     padding: 16px;

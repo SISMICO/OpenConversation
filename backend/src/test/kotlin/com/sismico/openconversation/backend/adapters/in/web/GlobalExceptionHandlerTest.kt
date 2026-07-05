@@ -48,4 +48,22 @@ class GlobalExceptionHandlerTest {
             .andExpect(jsonPath("$.error.code").value("BAD_REQUEST"))
             .andExpect(jsonPath("$.error.message").exists())
     }
+
+    @Test
+    fun `transcription failed error returns 503 with TRANSCRIPTION_FAILED code`() {
+        mockMvc
+            .perform(get("/test/transcription-failed"))
+            .andExpect(status().isServiceUnavailable)
+            .andExpect(jsonPath("$.error.code").value("TRANSCRIPTION_FAILED"))
+            .andExpect(jsonPath("$.error.message").exists())
+    }
+
+    @Test
+    fun `audio conversion failed error returns 400 with AUDIO_CONVERSION_FAILED code`() {
+        mockMvc
+            .perform(get("/test/audio-conversion-failed"))
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.error.code").value("AUDIO_CONVERSION_FAILED"))
+            .andExpect(jsonPath("$.error.message").exists())
+    }
 }

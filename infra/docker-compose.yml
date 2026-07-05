@@ -1,6 +1,5 @@
 # OpenConversation local development infrastructure
-# Services: Whisper (speech-to-text), PostgreSQL
-# Future services: backend (Kotlin/Spring Boot), webapp (Vite/React)
+# Services: Whisper (speech-to-text), PostgreSQL, backend (Kotlin/Spring Boot), webapp (Vite/React)
 #
 # Usage:
 #   cp .env.example .env
@@ -59,41 +58,44 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # backend:
-  #   build:
-  #     context: ../backend
-  #     dockerfile: Dockerfile
-  #   container_name: openconversation-backend
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     whisper:
-  #       condition: service_healthy
-  #   environment:
-  #     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-conversation}
-  #     SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
-  #     SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
-  #     WHISPER_BASE_URL: http://whisper:8080
-  #   ports:
-  #     - "8081:8081"
-  #   networks:
-  #     - openconversation
-  #   restart: unless-stopped
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: openconversation-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      whisper:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-conversation}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      WHISPER_BASE_URL: http://whisper:8080
+      AUDIO_STORAGE_LOCAL_BASE_PATH: /app/audios
+    volumes:
+      # Bind mount for persisted audio files
+      - ./audios:/app/audios
+    ports:
+      - "8081:8081"
+    networks:
+      - openconversation
+    restart: unless-stopped
 
-  # webapp:
-  #   build:
-  #     context: ../webapp
-  #     dockerfile: Dockerfile
-  #   container_name: openconversation-webapp
-  #   depends_on:
-  #     - backend
-  #   environment:
-  #     VITE_API_URL: http://localhost:8081
-  #   ports:
-  #     - "5173:5173"
-  #   networks:
-  #     - openconversation
-  #   restart: unless-stopped
+  webapp:
+    build:
+      context: ../webapp
+      dockerfile: Dockerfile
+    container_name: openconversation-webapp
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "5173:5173"
+    networks:
+      - openconversation
+    restart: unless-stopped
 
 networks:
   openconversation:

@@ -4,7 +4,9 @@ import com.sismico.openconversation.backend.domain.ConversationWithTopic
 
 interface AnalyzeConversationUseCase {
     fun analyze(
-        audioStorageRef: String,
+        audio: ByteArray,
+        audioFilename: String?,
         topicTitle: String,
+        language: String?,
     ): ConversationWithTopic
 }

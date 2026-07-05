@@ -19,3 +19,13 @@ spring:
     multipart:
       max-file-size: 25MB
       max-request-size: 26MB
+
+server:
+  port: 8081
+
+openconversation:
+  whisper:
+    base-url: ${WHISPER_BASE_URL:http://localhost:8080}
+  audio-storage:
+    local:
+      base-path: ${AUDIO_STORAGE_LOCAL_BASE_PATH:/app/audios}

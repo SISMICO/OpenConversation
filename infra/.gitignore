@@ -3,3 +3,7 @@
 
 # Downloaded model binaries (large files)
 models/
+
+# Uploaded audio recordings (persisted locally in development)
+audios/*
+!audios/.gitkeep
