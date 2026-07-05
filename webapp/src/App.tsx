@@ -9,6 +9,7 @@ import {
   Square,
   Trash2,
 } from 'lucide-react'
+import { Header } from '#components/Header'
 import { Button } from '#components/ui/button'
 import {
   Card,
@@ -102,6 +103,7 @@ export default function App() {
 
   return (
     <div className="app-container">
+      <Header className="mb-6" />
       <main className="main-content">
         <Card className="topic-card">
           <CardHeader>
@@ -135,7 +137,7 @@ export default function App() {
                 <>
                   <Button
                     onClick={recorder.pause}
-                    variant="outline"
+                    variant="secondary"
                     size="lg"
                     className="control-button"
                   >
