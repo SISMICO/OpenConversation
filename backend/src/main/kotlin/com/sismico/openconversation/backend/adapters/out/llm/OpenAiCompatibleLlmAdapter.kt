@@ -59,11 +59,14 @@ class OpenAiCompatibleLlmAdapter(
             Each item must have "excerpt" (the original text), "correctedExcerpt" (the suggested
             correction), and "explanation" (why the correction helps). You may also include an
             optional "overallComment" string with general fluency feedback.
+            - Analyze only spelling, grammar, verb tenses and agreement errors.
+            - Suggest other words only when the one used does not match the subject covered, if the words used can be applied, do not replace them.
+            - Prioritize feedback related to problems and then possible improvements or suggestions for improvement.
             """.trimIndent()
         val userPrompt =
             """
             Topic: $topic
-            Language$languageLabel
+            Language: $languageLabel
             Transcript:
             $transcript
             """.trimIndent()
