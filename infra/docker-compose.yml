@@ -3,6 +3,7 @@
 #
 # Usage:
 #   cp .env.example .env
+#   infra/setup-audio-volume.sh
 #   docker compose -f infra/docker-compose.yml up
 
 services:
@@ -62,7 +63,11 @@ services:
     build:
       context: ../backend
       dockerfile: Dockerfile
+      args:
+        APP_UID: ${AUDIO_STORAGE_UID:-1000}
+        APP_GID: ${AUDIO_STORAGE_GID:-1000}
     container_name: openconversation-backend
+    user: "${AUDIO_STORAGE_UID:-1000}:${AUDIO_STORAGE_GID:-1000}"
     depends_on:
       postgres:
         condition: service_healthy

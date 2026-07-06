@@ -19,8 +19,10 @@ RUN ./gradlew bootJar --no-daemon
 # --- Runtime stage ---
 FROM eclipse-temurin:21-jre-alpine
 
-# Create a non-root user to run the application
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+# Create a non-root user with deterministic IDs for volume ownership
+ARG APP_UID=1000
+ARG APP_GID=1000
+RUN addgroup -g ${APP_GID} -S appgroup && adduser -u ${APP_UID} -S appuser -G appgroup
 
 WORKDIR /app
 
