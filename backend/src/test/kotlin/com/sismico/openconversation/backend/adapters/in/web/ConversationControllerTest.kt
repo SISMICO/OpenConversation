@@ -8,6 +8,7 @@ import com.sismico.openconversation.backend.domain.Conversation
 import com.sismico.openconversation.backend.domain.ConversationSummary
 import com.sismico.openconversation.backend.domain.ConversationWithTopic
 import com.sismico.openconversation.backend.domain.FeedbackItem
+import com.sismico.openconversation.backend.domain.exception.LlmAnalysisException
 import com.sismico.openconversation.backend.domain.pagination.Page
 import io.mockk.every
 import io.mockk.mockk
@@ -173,6 +174,36 @@ class ConversationControllerTest {
                 language = "Portuguese",
             )
         }
+    }
+
+    @Test
+    fun `POST returns 503 with LLM_ANALYSIS_FAILED when LLM analysis fails`() {
+        val audioBytes = "fake-audio".toByteArray()
+        val audioFile =
+            MockMultipartFile(
+                "audio",
+                "recording.webm",
+                MediaType.APPLICATION_OCTET_STREAM_VALUE,
+                audioBytes,
+            )
+
+        every {
+            analyzeConversationUseCase.analyze(
+                audio = any<ByteArray>(),
+                audioFilename = any(),
+                topicTitle = "job interview",
+                language = any(),
+            )
+        } throws LlmAnalysisException("LLM unavailable")
+
+        mockMvc
+            .perform(
+                multipart("/api/v1/conversations")
+                    .file(audioFile)
+                    .param("topicTitle", "job interview"),
+            ).andExpect(status().isServiceUnavailable)
+            .andExpect(jsonPath("$.error.code").value("LLM_ANALYSIS_FAILED"))
+            .andExpect(jsonPath("$.error.message").exists())
     }
 
     @Test

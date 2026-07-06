@@ -1,5 +1,5 @@
 # OpenConversation local development infrastructure
-# Services: Whisper (speech-to-text), PostgreSQL, backend (Kotlin/Spring Boot), webapp (Vite/React)
+# Services: Whisper (speech-to-text), Ollama (LLM), PostgreSQL, backend (Kotlin/Spring Boot), webapp (Vite/React)
 #
 # Usage:
 #   cp .env.example .env
@@ -59,6 +59,33 @@ services:
       retries: 5
     restart: unless-stopped
 
+  ollama:
+    image: ollama/ollama:0.5.7
+    container_name: openconversation-ollama
+    ports:
+      - "${OLLAMA_HOST_PORT:-11434}:11434"
+    volumes:
+      # Named volume for downloaded Ollama models
+      - ${OLLAMA_MODEL_PATH:-/usr/share/ollama/.ollama}:/root/.ollama
+      # Entrypoint that pulls the model if missing before marking the server ready
+      - ./ollama-entrypoint.sh:/ollama-entrypoint.sh:ro
+    # Override the default image entrypoint with our model-pull entrypoint
+    entrypoint: ["/ollama-entrypoint.sh"]
+    networks:
+      - openconversation
+    healthcheck:
+      # Verify the Ollama server is responding and the model is loaded
+      test:
+        [
+          "CMD-SHELL",
+          "ollama list >/dev/null 2>&1",
+        ]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s
+      retries: 3
+    restart: unless-stopped
+
   backend:
     build:
       context: ../backend
@@ -73,12 +100,18 @@ services:
         condition: service_healthy
       whisper:
         condition: service_healthy
+      ollama:
+        condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-conversation}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       WHISPER_BASE_URL: http://whisper:8080
       AUDIO_STORAGE_LOCAL_BASE_PATH: /app/audios
+      LLM_BASE_URL: http://ollama:11434/v1
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-llama3.2:3b}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-120}
     volumes:
       # Bind mount for persisted audio files
       - ./audios:/app/audios

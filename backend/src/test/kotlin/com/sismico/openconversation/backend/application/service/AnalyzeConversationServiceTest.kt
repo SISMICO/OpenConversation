@@ -1,5 +1,6 @@
 package com.sismico.openconversation.backend.application.service
 
+import com.sismico.openconversation.backend.application.ports.out.llm.LlmAnalysisPort
 import com.sismico.openconversation.backend.application.ports.out.persistence.ConversationRepositoryPort
 import com.sismico.openconversation.backend.application.ports.out.storage.AudioStoragePort
 import com.sismico.openconversation.backend.application.ports.out.transcription.AudioConversionPort
@@ -7,15 +8,20 @@ import com.sismico.openconversation.backend.application.ports.out.transcription.
 import com.sismico.openconversation.backend.domain.AudioStorageReference
 import com.sismico.openconversation.backend.domain.Conversation
 import com.sismico.openconversation.backend.domain.ConversationWithTopic
+import com.sismico.openconversation.backend.domain.LlmAnalysisResult
+import com.sismico.openconversation.backend.domain.LlmFeedbackItem
 import com.sismico.openconversation.backend.domain.Topic
 import com.sismico.openconversation.backend.domain.Transcription
+import com.sismico.openconversation.backend.domain.exception.LlmAnalysisException
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
@@ -26,6 +32,7 @@ class AnalyzeConversationServiceTest {
     private val audioStoragePort: AudioStoragePort = mockk()
     private val audioConversionPort: AudioConversionPort = mockk()
     private val transcriptionPort: TranscriptionPort = mockk()
+    private val llmAnalysisPort: LlmAnalysisPort = mockk()
     private val analyzeConversationService =
         AnalyzeConversationService(
             topicService,
@@ -33,6 +40,7 @@ class AnalyzeConversationServiceTest {
             audioStoragePort,
             audioConversionPort,
             transcriptionPort,
+            llmAnalysisPort,
         )
 
     @Test
@@ -65,6 +73,9 @@ class AnalyzeConversationServiceTest {
         every { audioStoragePort.store(audio, audioFilename) } returns storageRef
         every { audioConversionPort.convert(audio, audioFilename) } returns convertedAudio
         every { transcriptionPort.transcribe(convertedAudio, null) } returns transcription
+        every {
+            llmAnalysisPort.analyze(transcription.text, topic.title, null)
+        } returns LlmAnalysisResult(feedbackItems = emptyList())
         every { conversationRepository.save(any()) } returns savedConversation
 
         val result =
@@ -79,12 +90,14 @@ class AnalyzeConversationServiceTest {
         verify { audioStoragePort.store(audio, audioFilename) }
         verify { audioConversionPort.convert(audio, audioFilename) }
         verify { transcriptionPort.transcribe(convertedAudio, null) }
+        verify { llmAnalysisPort.analyze(transcription.text, topic.title, null) }
         val conversationSlot = slot<Conversation>()
         verify { conversationRepository.save(capture(conversationSlot)) }
         assertEquals(topicId, conversationSlot.captured.topicId)
         assertEquals(storageRef.ref, conversationSlot.captured.audioStorageRef)
         assertEquals(transcription.text, conversationSlot.captured.transcript)
         assertNotNull(conversationSlot.captured.analyzedAt)
+        assertTrue(conversationSlot.captured.feedbackItems.isEmpty())
     }
 
     @Test
@@ -116,6 +129,7 @@ class AnalyzeConversationServiceTest {
         every { audioStoragePort.store(audio, null) } returns storageRef
         every { audioConversionPort.convert(audio, null) } returns convertedAudio
         every { transcriptionPort.transcribe(convertedAudio, null) } returns transcription
+        every { llmAnalysisPort.analyze(transcription.text, topic.title, null) } returns LlmAnalysisResult()
         every { conversationRepository.save(any()) } returns savedConversation
 
         val result =
@@ -131,7 +145,7 @@ class AnalyzeConversationServiceTest {
     }
 
     @Test
-    fun `analyze includes language in feedback recommendations when provided`() {
+    fun `analyze maps LLM feedback items to FeedbackItem with corrected excerpt and explanation`() {
         val topicId = UUID.randomUUID()
         val topic =
             Topic(
@@ -154,11 +168,24 @@ class AnalyzeConversationServiceTest {
                 createdAt = OffsetDateTime.now(ZoneOffset.UTC),
                 updatedAt = OffsetDateTime.now(ZoneOffset.UTC),
             )
+        val llmResult =
+            LlmAnalysisResult(
+                feedbackItems =
+                    listOf(
+                        LlmFeedbackItem(
+                            excerpt = "I go to the store yesterday",
+                            correctedExcerpt = "I went to the store yesterday",
+                            explanation = "Use past tense for completed actions.",
+                        ),
+                    ),
+                overallComment = "Good effort",
+            )
 
         every { topicService.ensureTopic("job interview") } returns topic
         every { audioStoragePort.store(audio, null) } returns storageRef
         every { audioConversionPort.convert(audio, null) } returns convertedAudio
         every { transcriptionPort.transcribe(convertedAudio, "Portuguese") } returns transcription
+        every { llmAnalysisPort.analyze(transcription.text, topic.title, "Portuguese") } returns llmResult
         every { conversationRepository.save(any()) } returns savedConversation
 
         analyzeConversationService.analyze(
@@ -170,14 +197,47 @@ class AnalyzeConversationServiceTest {
 
         val conversationSlot = slot<Conversation>()
         verify { conversationRepository.save(capture(conversationSlot)) }
+        assertEquals(1, conversationSlot.captured.feedbackItems.size)
+        assertEquals("I go to the store yesterday", conversationSlot.captured.feedbackItems[0].excerpt)
         assertEquals(
-            "Consider expanding your vocabulary in Portuguese.",
+            "Correction: I went to the store yesterday\nUse past tense for completed actions.",
             conversationSlot.captured.feedbackItems[0].recommendation,
         )
-        assertEquals(
-            "Practice verb tenses more in Portuguese.",
-            conversationSlot.captured.feedbackItems[1].recommendation,
-        )
+        assertEquals(0, conversationSlot.captured.feedbackItems[0].displayOrder)
+    }
+
+    @Test
+    fun `analyze propagates LlmAnalysisException and does not persist conversation`() {
+        val topicId = UUID.randomUUID()
+        val topic =
+            Topic(
+                id = topicId,
+                title = "daily routine",
+                createdAt = OffsetDateTime.now(ZoneOffset.UTC),
+                updatedAt = OffsetDateTime.now(ZoneOffset.UTC),
+            )
+        val audio = byteArrayOf(1, 1, 1)
+        val convertedAudio = byteArrayOf(2, 2, 2)
+        val audioFilename = "recording.webm"
+        val storageRef = AudioStorageReference("local:///tmp/audio/original.webm")
+        val transcription = Transcription("Converted transcript")
+
+        every { topicService.ensureTopic("daily routine") } returns topic
+        every { audioStoragePort.store(audio, audioFilename) } returns storageRef
+        every { audioConversionPort.convert(audio, audioFilename) } returns convertedAudio
+        every { transcriptionPort.transcribe(convertedAudio, null) } returns transcription
+        every { llmAnalysisPort.analyze(transcription.text, topic.title, null) } throws LlmAnalysisException("LLM down")
+
+        assertThrows<LlmAnalysisException> {
+            analyzeConversationService.analyze(
+                audio = audio,
+                audioFilename = audioFilename,
+                topicTitle = "daily routine",
+                language = null,
+            )
+        }
+
+        verify(exactly = 0) { conversationRepository.save(any()) }
     }
 
     @Test
@@ -210,6 +270,7 @@ class AnalyzeConversationServiceTest {
         every { audioStoragePort.store(originalAudio, audioFilename) } returns storageRef
         every { audioConversionPort.convert(originalAudio, audioFilename) } returns convertedAudio
         every { transcriptionPort.transcribe(convertedAudio, null) } returns transcription
+        every { llmAnalysisPort.analyze(transcription.text, topic.title, null) } returns LlmAnalysisResult()
         every { conversationRepository.save(any()) } returns savedConversation
 
         analyzeConversationService.analyze(

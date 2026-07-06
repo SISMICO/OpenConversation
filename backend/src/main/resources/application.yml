@@ -26,6 +26,11 @@ server:
 openconversation:
   whisper:
     base-url: ${WHISPER_BASE_URL:http://localhost:8080}
+  llm:
+    base-url: ${LLM_BASE_URL:http://ollama:11434/v1}
+    api-key: ${LLM_API_KEY:}
+    model: ${LLM_MODEL:llama3.2:3b}
+    timeout-seconds: ${LLM_TIMEOUT_SECONDS:120}
   audio-storage:
     local:
       base-path: ${AUDIO_STORAGE_LOCAL_BASE_PATH:/app/audios}

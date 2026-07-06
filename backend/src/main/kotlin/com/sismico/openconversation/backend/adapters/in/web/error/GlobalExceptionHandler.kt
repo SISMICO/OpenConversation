@@ -1,6 +1,7 @@
 package com.sismico.openconversation.backend.adapters.`in`.web.error
 
 import com.sismico.openconversation.backend.domain.exception.AudioConversionException
+import com.sismico.openconversation.backend.domain.exception.LlmAnalysisException
 import com.sismico.openconversation.backend.domain.exception.TranscriptionFailedException
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.http.HttpStatus
@@ -106,6 +107,18 @@ class GlobalExceptionHandler {
             status = HttpStatus.SERVICE_UNAVAILABLE,
             code = "TRANSCRIPTION_FAILED",
             message = ex.message ?: "Transcription failed",
+            path = request.requestURI,
+        )
+
+    @ExceptionHandler(LlmAnalysisException::class)
+    fun handleLlmAnalysisFailed(
+        ex: LlmAnalysisException,
+        request: HttpServletRequest,
+    ): ResponseEntity<ApiErrorResponse> =
+        buildResponse(
+            status = HttpStatus.SERVICE_UNAVAILABLE,
+            code = "LLM_ANALYSIS_FAILED",
+            message = ex.message ?: "LLM analysis failed",
             path = request.requestURI,
         )
 

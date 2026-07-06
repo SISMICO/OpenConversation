@@ -1,6 +1,7 @@
 package com.sismico.openconversation.backend.application.service
 
 import com.sismico.openconversation.backend.application.ports.`in`.AnalyzeConversationUseCase
+import com.sismico.openconversation.backend.application.ports.out.llm.LlmAnalysisPort
 import com.sismico.openconversation.backend.application.ports.out.persistence.ConversationRepositoryPort
 import com.sismico.openconversation.backend.application.ports.out.storage.AudioStoragePort
 import com.sismico.openconversation.backend.application.ports.out.transcription.AudioConversionPort
@@ -21,6 +22,7 @@ class AnalyzeConversationService(
     private val audioStoragePort: AudioStoragePort,
     private val audioConversionPort: AudioConversionPort,
     private val transcriptionPort: TranscriptionPort,
+    private val llmAnalysisPort: LlmAnalysisPort,
 ) : AnalyzeConversationUseCase {
     override fun analyze(
         audio: ByteArray,
@@ -33,7 +35,18 @@ class AnalyzeConversationService(
         val audioForTranscription = audioConversionPort.convert(audio, audioFilename)
         val transcription = transcriptionPort.transcribe(audioForTranscription, language)
         val now = OffsetDateTime.now(ZoneOffset.UTC)
-        val languageLabel = language?.let { " in $it" } ?: ""
+
+        val llmResult = llmAnalysisPort.analyze(transcription.text, topic.title, language)
+
+        val feedbackItems =
+            llmResult.feedbackItems.mapIndexed { index, item ->
+                FeedbackItem(
+                    excerpt = item.excerpt,
+                    recommendation = "Correction: ${item.correctedExcerpt}\n${item.explanation}",
+                    displayOrder = index,
+                    createdAt = now,
+                )
+            }
 
         val conversation =
             Conversation(
@@ -41,21 +54,7 @@ class AnalyzeConversationService(
                 audioStorageRef = storageRef.ref,
                 transcript = transcription.text,
                 analyzedAt = now,
-                feedbackItems =
-                    listOf(
-                        FeedbackItem(
-                            excerpt = "Sample excerpt one",
-                            recommendation = "Consider expanding your vocabulary$languageLabel.",
-                            displayOrder = 0,
-                            createdAt = now,
-                        ),
-                        FeedbackItem(
-                            excerpt = "Sample excerpt two",
-                            recommendation = "Practice verb tenses more$languageLabel.",
-                            displayOrder = 1,
-                            createdAt = now,
-                        ),
-                    ),
+                feedbackItems = feedbackItems,
                 createdAt = now,
                 updatedAt = now,
             )
