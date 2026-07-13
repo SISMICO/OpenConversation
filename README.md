@@ -3,12 +3,12 @@
 
 **Download models**
 ```
-docker run -it --rm -v ./models:/models ghcr.io/ggml-org/whisper.cpp:main-cuda "./models/download-ggml-model.sh base /models"
+docker run -it --rm -v ./models:/models ghcr.io/ggml-org/whisper.cpp:main "./models/download-ggml-model.sh base /models"
 ```
 
 **Transcribe using terminal**
 ```
-docker run -it --rm -v ./models:/models -v /home/leonardo/Temp:/audios ghcr.io/ggml-org/whisper.cpp:main-cuda "whisper-cli -m /models/ggml-base.bin -f /audios/past\ history.mp3"
+docker run -it --rm -v ./models:/models -v /home/leonardo/Temp:/audios ghcr.io/ggml-org/whisper.cpp:main "whisper-cli -m /models/ggml-base.bin -f /audios/output.wav"
 ```
 
 **Open Web Solution**

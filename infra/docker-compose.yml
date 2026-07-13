@@ -8,7 +8,10 @@
 
 services:
   whisper:
-    image: ghcr.io/ggml-org/whisper.cpp:main
+    build:
+      context: https://github.com/ggml-org/whisper.cpp.git#v1.9.1
+      dockerfile: .devops/main.Dockerfile
+    image: whisper
     container_name: openconversation-whisper
     ports:
       - "8080:8080"
