@@ -49,6 +49,11 @@ export async function createConversation(
   }
 
   if (!response.ok) {
+    if (response.status === 413) {
+      throw new ConversationError(
+        'The audio file is too large. Try a shorter recording or reduce the audio quality.',
+      )
+    }
     throw new ConversationError(
       `Conversation request failed with status ${response.status}.`,
     )

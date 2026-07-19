@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import {
   AlertCircle,
+  Download,
   Loader2,
   Mic,
   Pause,
@@ -39,6 +40,7 @@ import {
   createConversation,
   type ConversationResponse,
 } from '#api/conversation'
+import { downloadBlob, getAudioExtension } from '#lib/utils'
 import './App.css'
 
 const TOPIC_PLACEHOLDER =
@@ -108,6 +110,15 @@ export default function App() {
     setSendError(null)
     setIsDiscardOpen(false)
   }, [recorder, playback])
+
+  const handleDownload = useCallback(() => {
+    if (!recorder.blob) {
+      return
+    }
+
+    const extension = getAudioExtension(recorder.mimeType)
+    downloadBlob(recorder.blob, `recording${extension}`)
+  }, [recorder.blob, recorder.mimeType])
 
   const recorderError = recorder.error ? ERROR_MESSAGES[recorder.error] : null
 
@@ -229,6 +240,16 @@ export default function App() {
                   >
                     <Send className="mr-2 size-5" />
                     Send
+                  </Button>
+                  <Button
+                    onClick={handleDownload}
+                    variant="secondary"
+                    size="lg"
+                    className="control-button"
+                    disabled={!recorder.blob}
+                  >
+                    <Download className="mr-2 size-5" />
+                    Download
                   </Button>
                   <Dialog
                     open={isDiscardOpen}

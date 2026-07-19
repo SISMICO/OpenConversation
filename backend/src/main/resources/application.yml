@@ -17,11 +17,13 @@ spring:
     enabled: true
   servlet:
     multipart:
-      max-file-size: 25MB
-      max-request-size: 26MB
+      max-file-size: 1GB
+      max-request-size: 1GB
 
 server:
   port: 8081
+  tomcat:
+    max-swallow-size: 1GB
 
 openconversation:
   whisper:
