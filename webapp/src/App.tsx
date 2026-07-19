@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState, type ChangeEvent } from 'react'
 import {
   AlertCircle,
   Download,
@@ -9,6 +9,7 @@ import {
   Send,
   Square,
   Trash2,
+  Upload,
 } from 'lucide-react'
 import { Header } from '#components/Header'
 import { Button } from '#components/ui/button'
@@ -63,6 +64,7 @@ function formatDuration(ms: number): string {
 export default function App() {
   const recorder = useAudioRecorder()
   const playback = useAudioPlayback(recorder.blob)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [topicTitle, setTopicTitle] = useState('')
   const [conversation, setConversation] = useState<ConversationResponse | null>(
     null,
@@ -77,6 +79,23 @@ export default function App() {
     playback.reset()
     await recorder.start()
   }, [recorder, playback])
+
+  const handleUpload = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0]
+      if (!file) {
+        return
+      }
+
+      setConversation(null)
+      setSendError(null)
+      playback.reset()
+      await recorder.upload(file)
+
+      event.target.value = ''
+    },
+    [recorder, playback],
+  )
 
   const handleSend = useCallback(async () => {
     if (!recorder.blob || !topicTitle.trim()) {
@@ -155,15 +174,35 @@ export default function App() {
             </div>
 
             <div className="control-buttons">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="audio/*"
+                aria-label="Upload audio file"
+                onChange={handleUpload}
+                className="sr-only"
+              />
+
               {recorder.state === 'idle' && (
-                <Button
-                  onClick={handleStart}
-                  size="lg"
-                  className="control-button"
-                >
-                  <Mic className="mr-2 size-5" />
-                  Start
-                </Button>
+                <>
+                  <Button
+                    onClick={handleStart}
+                    size="lg"
+                    className="control-button"
+                  >
+                    <Mic className="mr-2 size-5" />
+                    Start
+                  </Button>
+                  <Button
+                    onClick={() => fileInputRef.current?.click()}
+                    variant="secondary"
+                    size="lg"
+                    className="control-button"
+                  >
+                    <Upload className="mr-2 size-5" />
+                    Upload
+                  </Button>
+                </>
               )}
 
               {recorder.state === 'recording' && (

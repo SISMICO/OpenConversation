@@ -22,6 +22,7 @@ export interface AudioRecorderActions {
   resume: () => void
   stop: () => void
   reset: () => void
+  upload: (file: File) => Promise<void>
 }
 
 const PREFERRED_MIME_TYPE = 'audio/webm;codecs=opus'
@@ -121,6 +122,30 @@ export function useAudioRecorder(): AudioRecorderValue & AudioRecorderActions {
     setError(null)
     setState('idle')
   }, [clearTimer, stopTracks])
+
+  const upload = useCallback(
+    async (file: File) => {
+      reset()
+
+      if (!file) {
+        setError('generic')
+        setState('idle')
+        return
+      }
+
+      try {
+        setBlob(file)
+        setMimeType(file.type || null)
+        setDurationMs(0)
+        setError(null)
+        setState('stopped')
+      } catch {
+        setError('generic')
+        setState('idle')
+      }
+    },
+    [reset],
+  )
 
   const start = useCallback(async () => {
     reset()
@@ -234,5 +259,6 @@ export function useAudioRecorder(): AudioRecorderValue & AudioRecorderActions {
     resume,
     stop,
     reset,
+    upload,
   }
 }

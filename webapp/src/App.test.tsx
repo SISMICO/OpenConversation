@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -73,6 +73,7 @@ function createRecorderMock(overrides: Partial<RecorderMock> = {}): RecorderMock
     resume: vi.fn(),
     stop: vi.fn(),
     reset: vi.fn(),
+    upload: vi.fn(),
     ...overrides,
   }
 }
@@ -328,5 +329,169 @@ describe('App audio playback integration', () => {
 
     expect(screen.queryByRole('button', { name: 'Download' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Analysing...' })).toBeInTheDocument()
+  })
+})
+
+describe('App audio upload integration', () => {
+  function createAudioFile(name = 'test.webm', type = 'audio/webm'): File {
+    return new File(['audio content'], name, { type })
+  }
+
+  it('should render the Upload button in idle state', () => {
+    mockedUseAudioRecorder.mockReturnValue(createRecorderMock({ state: 'idle' }))
+
+    render(<App />)
+
+    expect(screen.getByRole('button', { name: 'Upload' })).toBeInTheDocument()
+  })
+
+  it('should hide the Upload button outside idle state', () => {
+    const states: Array<'recording' | 'paused' | 'stopped'> = ['recording', 'paused', 'stopped']
+
+    for (const state of states) {
+      mockedUseAudioRecorder.mockReturnValue(createRecorderMock({ state }))
+      const { unmount } = render(<App />)
+
+      expect(screen.queryByRole('button', { name: 'Upload' })).not.toBeInTheDocument()
+      unmount()
+    }
+  })
+
+  it('should have an accessible Upload button', () => {
+    mockedUseAudioRecorder.mockReturnValue(createRecorderMock({ state: 'idle' }))
+
+    render(<App />)
+
+    expect(screen.getByRole('button', { name: 'Upload' })).toHaveAccessibleName('Upload')
+  })
+
+  it('should trigger the hidden file input when Upload is clicked', async () => {
+    const user = userEvent.setup()
+    const clickSpy = vi.spyOn(HTMLInputElement.prototype, 'click')
+
+    mockedUseAudioRecorder.mockReturnValue(createRecorderMock({ state: 'idle' }))
+
+    render(<App />)
+
+    const uploadButton = screen.getByRole('button', { name: 'Upload' })
+    await user.click(uploadButton)
+
+    expect(clickSpy).toHaveBeenCalled()
+  })
+
+  it('should call recorder.upload when a file is selected', async () => {
+    const upload = vi.fn()
+    mockedUseAudioRecorder.mockReturnValue(createRecorderMock({ state: 'idle', upload }))
+
+    render(<App />)
+
+    const fileInput = screen.getByLabelText('Upload audio file')
+    const file = createAudioFile()
+
+    fireEvent.change(fileInput, { target: { files: [file] } })
+
+    expect(upload).toHaveBeenCalledTimes(1)
+    expect(upload).toHaveBeenCalledWith(file)
+  })
+
+  it('should clear previous feedback when a file is selected', async () => {
+    const user = userEvent.setup()
+    const blob = new Blob(['audio'])
+    const recorder = createRecorderMock({ state: 'stopped', blob })
+
+    mockedUseAudioRecorder.mockReturnValue(recorder)
+    mockedCreateConversation.mockResolvedValue({
+      id: 'conv-1',
+      topicId: 'topic-1',
+      topicTitle: 'Job interview practice',
+      transcript: 'Test transcript',
+      audioStorageRef: 'local:///app/audios/test.webm',
+      analyzedAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      feedbackItems: [
+        {
+          id: 'fb-1',
+          excerpt: 'A phrase',
+          recommendation: 'A recommendation',
+          displayOrder: 0,
+        },
+      ],
+    })
+
+    render(<App />)
+
+    const topicInput = screen.getByPlaceholderText('Simulate a job interview about your career and describe your last role.')
+    await user.type(topicInput, 'Job interview practice')
+
+    const sendButton = screen.getByRole('button', { name: 'Send' })
+    await user.click(sendButton)
+
+    await screen.findByText('Test transcript')
+
+    const fileInput = screen.getByLabelText('Upload audio file')
+    fireEvent.change(fileInput, { target: { files: [createAudioFile()] } })
+
+    expect(recorder.upload).toHaveBeenCalled()
+    expect(screen.getByText('Your feedback will appear here after you send a recording.')).toBeInTheDocument()
+  })
+
+  it('should clear previous send error when a file is selected', async () => {
+    const user = userEvent.setup()
+    const blob = new Blob(['audio'])
+    const recorder = createRecorderMock({ state: 'stopped', blob })
+
+    mockedUseAudioRecorder.mockReturnValue(recorder)
+    mockedCreateConversation.mockRejectedValue(
+      new Error('Network error. Please check your connection and try again.'),
+    )
+
+    render(<App />)
+
+    const topicInput = screen.getByPlaceholderText('Simulate a job interview about your career and describe your last role.')
+    await user.type(topicInput, 'Job interview practice')
+
+    const sendButton = screen.getByRole('button', { name: 'Send' })
+    await user.click(sendButton)
+
+    await screen.findByText('Network error. Please check your connection and try again.')
+
+    const fileInput = screen.getByLabelText('Upload audio file')
+    fireEvent.change(fileInput, { target: { files: [createAudioFile()] } })
+
+    expect(recorder.upload).toHaveBeenCalled()
+    expect(screen.queryByText('Network error. Please check your connection and try again.')).not.toBeInTheDocument()
+  })
+
+  it('should show Play, Send, and Discard after an upload', () => {
+    mockedUseAudioRecorder.mockReturnValue(
+      createRecorderMock({ state: 'stopped', blob: new Blob(['audio']) }),
+    )
+
+    render(<App />)
+
+    expect(screen.getByRole('button', { name: 'Play' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Send' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Discard' })).toBeInTheDocument()
+  })
+
+  it('should disable Send when no topic title is provided after an upload', () => {
+    mockedUseAudioRecorder.mockReturnValue(
+      createRecorderMock({ state: 'stopped', blob: new Blob(['audio']) }),
+    )
+
+    render(<App />)
+
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
+  })
+
+  it('should hide the Start button after an upload', () => {
+    mockedUseAudioRecorder.mockReturnValue(
+      createRecorderMock({ state: 'stopped', blob: new Blob(['audio']) }),
+    )
+
+    render(<App />)
+
+    expect(screen.queryByRole('button', { name: 'Start' })).not.toBeInTheDocument()
   })
 })
